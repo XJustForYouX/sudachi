@@ -1,0 +1,73 @@
+name: Create/update tag
+on:
+  schedule:
+    - cron: '* * * * *'
+  workflow_dispatch:
+    inputs:
+      android:
+        description: 'Whether to trigger an Android build (true/false/auto)'
+        required: false
+        default: 'true'
+     
+jobs:
+  syncro:
+    runs-on: ubuntu-latest
+    environment: Android9
+    name: Sync latest commits from upstream repo
+    steps:
+    - name: Checkout target repo
+      uses: actions/checkout@v3
+      with:
+          fetch-depth: 0
+    - name: Sync upstream changes
+      id: sync
+      uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+      with:
+        target_sync_branch: main
+        target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+        upstream_sync_branch: main
+        upstream_sync_repo: sudachi-emu/sudachi
+        upstream_pull_args: '-s recursive -Xtheirs'
+        target_branch_push_args: --force
+        test_mode: false 
+    - name: New commits found
+      if: steps.sync.outputs.has_new_commits == 'true'
+      run: echo "New commits were found to sync."
+    - name: No new commits
+      if: steps.sync.outputs.has_new_commits == 'false'
+      run: echo "There were no new commits."
+    - name: Show value of 'has_new_commits'
+      run: echo ${{ steps.sync.outputs.has_new_commits }}
+    outputs: 
+      isUpdated: ${{ steps.sync.outputs.has_new_commits }}
+      
+  create-tag:
+    runs-on: ubuntu-latest
+    environment: Android9
+    needs: [syncro]
+    if: ${{ needs.syncro.outputs.isUpdated == 'true' || github.event.inputs.android == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+        with:
+          fetch-depth: 0
+      - name: 'Get Previous tag'
+        id: previoustag
+        uses: "WyriHaximus/github-action-get-previous-tag@v1"
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+        with:
+          fallback: 159
+      - name: 'Get next minor version'
+        id: semvers
+        uses: "WyriHaximus/github-action-next-semvers@v1"
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+        with:
+          version: ${{ steps.previoustag.outputs.tag }}
+      - name: Tag commit
+        uses: tvdias/github-tagger@v0.0.1
+        with:
+          repo-token: "${{ secrets.MY_TOKEN }}"
+          tag: ${{ steps.semvers.outputs.patch }}
