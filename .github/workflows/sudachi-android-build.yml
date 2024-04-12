@@ -1,0 +1,81 @@
+name: sudachi-android-build
+
+on:
+  workflow_dispatch:
+    inputs:
+    
+      buildVariant:
+        type: choice
+        description: 'Build Variant'     
+        required: true
+        default: 'mainline'
+        options: 
+        - mainline
+        - ea
+
+jobs:
+  sudachi_android_build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Download sudachi source code
+      run: |
+        cd ${{ github.workspace }}
+        git clone --branch ${{ github.event.inputs.branch || 'main' }} https://github.com/XJustForYouX/sudachi.git --recursive
+        cd sudachi
+        sed -i '120i\        -Wno-unused-function' src/CMakeLists.txt
+
+    - id: version
+      name: Get version
+      run: |
+        echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        cd ${{ github.workspace }}/sudachi
+        echo "hash=$(git log -1 --pretty=format:%H)" >> $GITHUB_OUTPUT
+        echo "short_hash=$(git describe --always --long)" >> $GITHUB_OUTPUT
+        echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
+
+    - name: Set up cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          ~/.cache
+        key: ${{ runner.os }}-sudachi-android-${{ steps.version.outputs.hash }}
+        restore-keys: |
+            ${{ runner.os }}-sudachi-android-
+
+    - name: Prepare environment
+      run: |
+        sudo apt-get install ccache autoconf cmake g++-11 gcc-11 git glslang-tools libasound2 libboost-context-dev libglu1-mesa-dev libhidapi-dev libpulse-dev libtool libudev-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxext-dev libxkbcommon-x11-0 mesa-common-dev nasm ninja-build qtbase5-dev qtbase5-private-dev qtwebengine5-dev qtmultimedia5-dev libmbedtls-dev catch2 libfmt-dev liblz4-dev nlohmann-json3-dev libzstd-dev libssl-dev libavfilter-dev libavcodec-dev libswscale-dev
+
+    - name: Build Android
+      run: |
+        export NDK_CCACHE="$(which ccache)"
+        ccache -sv
+        cd ${{ github.workspace }}/sudachi/src/android
+        chmod +x ./gradlew
+        ./gradlew "assemble${{ github.event.inputs.flavor || 'ea' }}Release"
+        # bash gradlew build
+        mv $(find app/build/outputs/apk -type f | grep -E "\.apk$") ${{ github.workspace }}/sudachi-android-${{ github.event.inputs.flavor || 'ea' }}-${{ steps.version.outputs.date }}-${{ steps.version.outputs.version }}.apk
+        ccache -sv
+
+    - name: Release Sudachi (Sudachi-Android)
+      uses: softprops/action-gh-release@v2
+      with:
+        name: Sudachi Android ${{ steps.version.outputs.date }}
+        tag_name: sudachi-android
+        files: ${{ github.workspace }}/sudachi-android-${{ github.event.inputs.flavor || 'ea' }}-${{ steps.version.outputs.date }}-${{ steps.version.outputs.version }}.apk
+
+    - name: Release Sudachi ${{ steps.version.outputs.date }}
+      uses: softprops/action-gh-release@v2
+      with:
+        name: ${{ steps.version.outputs.date }}
+        tag_name: ${{ steps.version.outputs.date }}
+        files: ${{ github.workspace }}/sudachi-android-${{ github.event.inputs.flavor || 'ea' }}-${{ steps.version.outputs.date }}-${{ steps.version.outputs.version }}.apk
