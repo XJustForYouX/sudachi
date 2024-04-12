@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2021 sudachi Emulator Project
+// SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #ifdef _WIN32
@@ -11,6 +11,9 @@
 
 #elif defined(__linux__) || defined(__FreeBSD__) // ^^^ Windows ^^^ vvv Linux vvv
 
+#ifdef ANDROID
+#include <android/sharedmem.h>
+#endif
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -443,7 +446,9 @@ public:
         }
 
         // Backing memory initialization
-#if defined(__FreeBSD__) && __FreeBSD__ < 13
+#ifdef ANDROID
+		fd = ASharedMemory_create("HostMemory", backing_size);
+#elif  define(__FreeBSD__) && __FreeBSD__ < 13
         // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
         fd = shm_open(SHM_ANON, O_RDWR, 0600);
 #else
@@ -454,7 +459,9 @@ public:
             throw std::bad_alloc{};
         }
 
-        // Defined to extend the file with zeros
+        
+#ifndef ANDROID
+// Defined to extend the file with zeros
         int ret = ftruncate(fd, backing_size);
         if (ret != 0) {
             LOG_CRITICAL(HW_Memory, "ftruncate failed with {}, are you out-of-memory?",
@@ -462,7 +469,10 @@ public:
             throw std::bad_alloc{};
         }
 
-        backing_base = static_cast<u8*>(
+        
+#endif
+
+		backing_base = static_cast<u8*>(
             mmap(nullptr, backing_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
         if (backing_base == MAP_FAILED) {
             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
