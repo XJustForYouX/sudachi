@@ -20,7 +20,7 @@
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/ipc_helpers.h"
 #include "core/hle/service/set/set.h"
-#include "core/hle/service/set/set_sys.h"
+#include "core/hle/service/set/settings_types.h"
 
 namespace Service::Set {
 
@@ -789,8 +789,9 @@ void SET_SYS::GetKeyboardLayout(HLERequestContext& ctx) {
 void SET_SYS::GetRebootlessSystemUpdateVersion(HLERequestContext& ctx) {
     LOG_WARNING(Service_SET, "(STUBBED) called.");
 
-    IPC::ResponseBuilder rb{ctx, 2};
+    IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(ResultSuccess);
+    rb.PushRaw<RebootlessSystemUpdateVersion>(m_system_settings.rebootless_system_version);
 }
 
 void SET_SYS::GetDeviceTimeZoneLocationUpdatedTime(HLERequestContext& ctx) {

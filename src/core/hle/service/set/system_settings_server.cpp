@@ -1198,8 +1198,11 @@ Result ISystemSettingsServer::SetKeyboardLayout(KeyboardLayout keyboard_layout) 
     R_SUCCEED();
 }
 
-Result ISystemSettingsServer::GetRebootlessSystemUpdateVersion() {
-    LOG_WARNING(Service_SET, "(STUBBED) called.");
+Result ISystemSettingsServer::GetRebootlessSystemUpdateVersion(
+    Out<RebootlessSystemUpdateVersion> out_rebootless_update_version) {
+    LOG_INFO(Service_SET, "called");
+
+    *out_rebootless_update_version = m_system_settings.rebootless_system_version;
     R_SUCCEED();
 }
 
